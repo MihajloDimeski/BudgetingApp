@@ -567,6 +567,12 @@ def api_history():
     for h in history:
         account_history[h.account_id].append(h)
 
+    # Get base currency
+    base_currency = current_user.household.base_currency
+    
+    # Map account ID to currency
+    account_currencies = {acc.id: acc.currency for acc in accounts}
+
     datasets = []
     labels = [d.strftime('%Y-%m-%d') for d in target_dates]
     
@@ -574,6 +580,7 @@ def api_history():
         acc_history = account_history.get(acc.id, [])
         balances = []
         invested_amounts = []
+        acc_currency = account_currencies.get(acc.id, 'USD')
         
         for target_date in target_dates:
             last_record = None
@@ -584,8 +591,12 @@ def api_history():
                     break
             
             if last_record:
-                balances.append(last_record.balance)
-                invested_amounts.append(last_record.invested_amount)
+                # Convert balance and invested amount to base currency
+                converted_balance = CurrencyConverter.convert(last_record.balance, acc_currency, base_currency)
+                converted_invested = CurrencyConverter.convert(last_record.invested_amount, acc_currency, base_currency)
+                
+                balances.append(converted_balance)
+                invested_amounts.append(converted_invested)
             else:
                 balances.append(0)
                 invested_amounts.append(0)

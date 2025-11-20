@@ -2,62 +2,92 @@
 
 {% block content %}
 <div class="dashboard-grid">
+    <div style="grid-column: 1 / -1; text-align: right; margin-bottom: 1rem;">
+        <form action="{{ url_for('set_currency') }}" method="POST" style="display: inline-block;">
+            <select name="currency" onchange="this.form.submit()"
+                style="padding: 0.5rem; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--glass-border); border-radius: 4px; cursor: pointer;">
+                <option value="USD" {% if current_user.household.base_currency=='USD' %}selected{% endif %}>USD ($)
+                </option>
+                <option value="EUR" {% if current_user.household.base_currency=='EUR' %}selected{% endif %}>EUR (€)
+                </option>
+                <option value="MKD" {% if current_user.household.base_currency=='MKD' %}selected{% endif %}>MKD (den)
+                </option>
+            </select>
+        </form>
+    </div>
     <div class="card stat-card">
         <span class="stat-label">Net Worth</span>
         <span class="stat-value">{{ currency_symbol(current_user.household.base_currency) }}{{ "%.2f"|format(net_worth)
             }}</span>
         <span class="stat-label" style="color: var(--success-color);">Live Estimate</span>
-        <div style="display: flex; gap: 0.5rem;">
-            <select id="timeRange" onchange="updateChart()"
-                style="padding: 0.2rem; font-size: 0.8rem; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--text-secondary); border-radius: 4px;">
-                <option value="7d">Last 7 Days</option>
-                <option value="30d" selected>Last 30 Days</option>
-                <option value="3m">Last 3 Months</option>
-                <option value="1y">Last Year</option>
-                <option value="all">All Time</option>
-            </select>
-            <select id="resolution" onchange="updateChart()"
-                style="padding: 0.2rem; font-size: 0.8rem; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--text-secondary); border-radius: 4px;">
-                <option value="daily" selected>Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-            </select>
-        </div>
     </div>
-    <div style="height: 400px;">
-        <canvas id="performanceChart"></canvas>
+    <div class="card stat-card">
+        <span class="stat-label">Total Income</span>
+        <span class="stat-value" style="color: var(--success-color);">{{
+            currency_symbol(current_user.household.base_currency) }}{{ "%.2f"|format(total_income) }}</span>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Total Expenses</span>
+        <span class="stat-value" style="color: var(--danger-color);">{{
+            currency_symbol(current_user.household.base_currency) }}{{ "%.2f"|format(total_expenses) }}</span>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header">
-        Recent Transactions
+<div class="dashboard-grid" style="margin-top: 1.5rem; grid-template-columns: 2fr 1fr;">
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Performance</span>
+            <div style="display: flex; gap: 0.5rem;">
+                <select id="timeRange" onchange="updateChart()"
+                    style="padding: 0.2rem; font-size: 0.8rem; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--text-secondary); border-radius: 4px;">
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d" selected>Last 30 Days</option>
+                    <option value="3m">Last 3 Months</option>
+                    <option value="1y">Last Year</option>
+                    <option value="all">All Time</option>
+                </select>
+                <select id="resolution" onchange="updateChart()"
+                    style="padding: 0.2rem; font-size: 0.8rem; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--text-secondary); border-radius: 4px;">
+                    <option value="daily" selected>Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                </select>
+            </div>
+        </div>
+        <div style="height: 400px;">
+            <canvas id="performanceChart"></canvas>
+        </div>
     </div>
-    {% if recent_transactions %}
-    <table style="font-size: 0.9rem;">
-        <tbody>
-            {% for t in recent_transactions %}
-            <tr>
-                <td>{{ t.description }}</td>
-                <td
-                    style="text-align: right; color: {% if t.type == 'income' %}var(--success-color){% else %}var(--danger-color){% endif %};">
-                    {{ '+' if t.type == 'income' else '-' }}{{ currency_symbol(t.currency) }}{{
-                    "%.2f"|format(t.amount) }}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    <div style="text-align: center; margin-top: 1rem;">
-        <a href="{{ url_for('transactions') }}" class="btn btn-primary" style="font-size: 0.8rem;">View
-            All</a>
+
+    <div class="card">
+        <div class="card-header">
+            Recent Transactions
+        </div>
+        {% if recent_transactions %}
+        <table style="font-size: 0.9rem;">
+            <tbody>
+                {% for t in recent_transactions %}
+                <tr>
+                    <td>{{ t.description }}</td>
+                    <td
+                        style="text-align: right; color: {% if t.type == 'income' %}var(--success-color){% else %}var(--danger-color){% endif %};">
+                        {{ '+' if t.type == 'income' else '-' }}{{ currency_symbol(t.currency) }}{{
+                        "%.2f"|format(t.amount) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div style="text-align: center; margin-top: 1rem;">
+            <a href="{{ url_for('transactions') }}" class="btn btn-primary" style="font-size: 0.8rem;">View
+                All</a>
+        </div>
+        {% else %}
+        <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+            No transactions yet.
+        </div>
+        {% endif %}
     </div>
-    {% else %}
-    <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">
-        No transactions yet.
-    </div>
-    {% endif %}
-</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
