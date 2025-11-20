@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-grid" style="grid-template-columns: 1fr 2fr;">
+    <div class="card">
+        <div class="card-header">Manage Categories</div>
+        <form action="{{ url_for('add_category') }}" method="POST">
+            <div class="form-group">
+                <label>Category Name</label>
+                <input type="text" name="name" class="form-control" required placeholder="e.g. Dining Out">
+            </div>
+            <div class="form-group">
+                <label>Type</label>
+                <select name="type" class="form-control">
+                    <option value="expense">Expense</option>
+                    <option value="income">Income</option>
+                    <option value="savings">Savings</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Add Category</button>
+        </form>
+
+        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 1.5rem 0;">
+
+        <div class="card-header" style="margin-bottom: 0.5rem;">Existing Categories</div>
+        {% if categories %}
+        <table style="font-size: 0.9rem;">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cat in categories %}
+                <tr>
+                    <td>{{ cat.name }}</td>
+                    <td style="text-transform: capitalize;">{{ cat.type }}</td>
+                    <td>
+                        <a href="{{ url_for('delete_category', id=cat.id) }}"
+                            style="color: var(--danger-color); text-decoration: none;"
+                            onclick="return confirm('Delete category {{ cat.name }}? This will also remove its budget.')">
+                            &times;
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="color: var(--text-secondary); text-align: center; padding: 1rem;">
+            No categories yet. Create one above!
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <div class="card-header">Budget Allocations (Monthly)</div>
+
+        <div class="dashboard-grid" style="grid-template-columns: 1fr; gap: 1rem;">
+            {% for b in budgets %}
+            <div style="margin-bottom: 1rem; background: var(--bg-secondary); padding: 1rem; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 600;">{{ b.category.name }}</span>
+                    <a href="{{ url_for('delete_budget', id=b.id) }}"
+                        style="color: var(--text-secondary); text-decoration: none;">&times;</a>
+                </div>
+                <div
+                    style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">
+                    <span>{{ b.period|capitalize }}</span>
+                    <span>{{ currency_symbol(b.currency) }}{{ "%.2f"|format(b.spent) }} / {{ currency_symbol(b.currency)
+                        }}{{ "%.0f"|format(b.amount_limit) }}</span>
+                </div>
+                <div class="progress-bar"
+                    style="background: var(--bg-primary); height: 8px; border-radius: 4px; overflow: hidden;">
+                    <div class="progress-fill"
+                        style="height: 100%; width: {{ (b.spent / b.amount_limit * 100)|round }}%; background: {% if b.spent > b.amount_limit %}var(--danger-color){% else %}var(--success-color){% endif %};">
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div style="text-align: center; color: var(--text-secondary); padding: 2rem;">No budgets set.</div>
+            {% endfor %}
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 1.5rem 0;">
+
+        <div class="card-header">Set Budget</div>
+        <form action="{{ url_for('set_budget') }}" method="POST">
+            <div class="form-group">
+                <label>Category</label>
+                <select name="category_id" class="form-control">
+                    {% for c in categories %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Limit</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="number" step="0.01" name="amount_limit" class="form-control" required
+                        placeholder="1000" style="flex: 2;">
+                    <select name="currency" class="form-control" style="flex: 1;">
+                        <option value="USD" {% if current_user.household.base_currency=='USD' %}selected{% endif %}>USD
+                        </option>
+                        <option value="EUR" {% if current_user.household.base_currency=='EUR' %}selected{% endif %}>EUR
+                        </option>
+                        <option value="MKD" {% if current_user.household.base_currency=='MKD' %}selected{% endif %}>MKD
+                        </option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-success" style="width: 100%;">Set Budget</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

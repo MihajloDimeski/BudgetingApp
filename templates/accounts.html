@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-grid" style="grid-template-columns: 1fr 1fr;">
+
+    <!-- Manual Accounts -->
+    <div class="card">
+        <div class="card-header">Manual Accounts</div>
+        <table style="margin-bottom: 1.5rem;">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Balance</th>
+                    <th>Invested</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in accounts %}
+                <tr>
+                    <td>{{ a.name }}</td>
+                    <td>{{ a.type }}</td>
+                    <td>${{ "%.2f"|format(a.balance) }}</td>
+                    <td>${{ "%.2f"|format(a.invested_amount) }}</td>
+                    <td>
+                        <form action="{{ url_for('update_invested', id=a.id) }}" method="POST"
+                            style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input type="number" step="0.01" name="invested_amount" placeholder="Update"
+                                value="{{ a.invested_amount }}" required
+                                style="width: 80px; padding: 0.4rem; margin-bottom: 0;">
+                            <button type="submit" class="btn btn-primary"
+                                style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Save</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-secondary);">No accounts.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <form action="{{ url_for('add_account') }}" method="POST">
+            <label>Account Name</label>
+            <input type="text" name="name" required placeholder="e.g. Wallet">
+
+            <label>Type</label>
+            <select name="type">
+                <option value="Cash">Cash</option>
+                <option value="Investment">Investment</option>
+            </select>
+
+            <label>Initial Balance</label>
+            <input type="number" step="0.01" name="balance" required placeholder="0.00">
+
+            <label>Invested Amount</label>
+            <input type="number" step="0.01" name="invested_amount" placeholder="0.00">
+
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Add Account</button>
+        </form>
+    </div>
+
+    <!-- Integrations -->
+    <div class="card">
+        <div class="card-header">
+            Integrations
+            <a href="{{ url_for('sync_integrations') }}" class="btn btn-success" style="font-size: 0.8rem;">Sync Now</a>
+        </div>
+
+        <table style="margin-bottom: 1.5rem;">
+            <thead>
+                <tr>
+                    <th>Platform</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for i in integrations %}
+                <tr>
+                    <td>{{ i.platform|capitalize }}</td>
+                    <td style="color: var(--success-color);">Active</td>
+                    <td><a href="{{ url_for('delete_integration', id=i.id) }}"
+                            style="color: var(--danger-color);">Remove</a></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" style="text-align: center; color: var(--text-secondary);">No integrations.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <form action="{{ url_for('add_integration') }}" method="POST">
+            <label>Platform</label>
+            <select name="platform">
+                <option value="bybit">Bybit</option>
+                <option value="trading212">Trading212</option>
+            </select>
+
+            <label>API Key</label>
+            <input type="text" name="api_key" required>
+
+            <label>API Secret</label>
+            <input type="text" name="api_secret">
+
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Add Integration</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

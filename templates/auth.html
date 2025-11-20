@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget App - Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .auth-container {
+            width: 350px;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 0.5rem;
+            text-align: center;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .tab.active {
+            border-bottom: 2px solid var(--accent-color);
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: 1px solid var(--text-primary);
+            color: var(--text-primary);
+            padding: 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            width: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
+
+    <div class="card auth-container">
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('login')">Login</div>
+            <div class="tab" onclick="showTab('register')">Register</div>
+        </div>
+
+        <form id="login-form" action="{{ url_for('login') }}" method="POST">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" name="username" required>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" required>
+            </div>
+            <button type="submit">Login</button>
+        </form>
+
+        <form id="register-form" action="{{ url_for('register') }}" method="POST" class="hidden">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" name="username" required>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" required>
+            </div>
+
+            <div class="form-group">
+                <label>Household Action</label>
+                <select name="household_action" onchange="toggleHouseholdInput(this.value)">
+                    <option value="create">Create New Household</option>
+                    <option value="join">Join Existing Household</option>
+                </select>
+            </div>
+
+            <div id="create-household-fields">
+                <div class="form-group" id="household-name-group">
+                    <label>Household Name</label>
+                    <input type="text" name="household_name" placeholder="e.g. The Smiths">
+                </div>
+            </div>
+
+            <div class="form-group hidden" id="household-code-group">
+                <label>Household Join Code</label>
+                <input type="text" name="join_code">
+            </div>
+
+            <button type="submit">Register</button>
+        </form>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div style="color: var(--danger-color); margin-top: 1rem; text-align: center;">
+            {{ messages[0] }}
+        </div>
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <script>
+        function showTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab[onclick="showTab('${tab}')"]`).classList.add('active');
+
+            if (tab === 'login') {
+                document.getElementById('login-form').classList.remove('hidden');
+                document.getElementById('register-form').classList.add('hidden');
+            } else {
+                document.getElementById('login-form').classList.add('hidden');
+                document.getElementById('register-form').classList.remove('hidden');
+            }
+        }
+
+        function toggleHouseholdInput(action) {
+            if (action === 'create') {
+                document.getElementById('household-name-group').classList.remove('hidden');
+                document.getElementById('household-code-group').classList.add('hidden');
+            } else {
+                document.getElementById('household-name-group').classList.add('hidden');
+                document.getElementById('household-code-group').classList.remove('hidden');
+            }
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+        }
+
+        // Init theme
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+</body>
+
+</html>

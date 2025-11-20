@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-grid" style="grid-template-columns: 1fr 1fr;">
+    <div class="card">
+        <div class="card-header">Household Information</div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <label
+                style="display: block; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">Household
+                Name</label>
+            <div style="font-size: 1.2rem; font-weight: 600;">{{ household.name }}</div>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; margin-bottom: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">Join
+                Code</label>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div id="joinCode"
+                    style="font-size: 1.5rem; font-weight: 700; color: var(--accent-color); font-family: monospace; letter-spacing: 2px;">
+                    {{ household.join_code }}
+                </div>
+                <button onclick="copyJoinCode()" class="btn btn-primary" style="padding: 0.5rem 1rem;">
+                    📋 Copy
+                </button>
+            </div>
+            <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);">
+                Share this code with family members so they can join your household
+            </div>
+        </div>
+
+        <div
+            style="margin-top: 2rem; padding: 1rem; background: rgba(187, 134, 252, 0.1); border-radius: 8px; border: 1px solid var(--accent-color);">
+            <div style="font-weight: 600; margin-bottom: 0.5rem;">💡 How to Invite Members</div>
+            <ol style="margin: 0; padding-left: 1.5rem; font-size: 0.9rem; line-height: 1.6;">
+                <li>Share the join code above with your family member</li>
+                <li>They should go to the registration page</li>
+                <li>Select "Join Existing Household"</li>
+                <li>Enter the join code</li>
+                <li>Complete registration</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Household Members ({{ members|length }})</div>
+
+        {% if members %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for member in members %}
+                <tr>
+                    <td>
+                        {{ member.username }}
+                        {% if member.id == current_user.id %}
+                        <span style="color: var(--accent-color); font-size: 0.8rem;">(You)</span>
+                        {% endif %}
+                    </td>
+                    <td style="color: var(--text-secondary); font-size: 0.9rem;">
+                        Member
+                    </td>
+                    <td>
+                        {% if member.id != current_user.id %}
+                        <a href="{{ url_for('remove_member', user_id=member.id) }}"
+                            style="color: var(--danger-color); text-decoration: none;"
+                            onclick="return confirm('Remove {{ member.username }} from the household?')">
+                            Remove
+                        </a>
+                        {% else %}
+                        <span style="color: var(--text-secondary); font-size: 0.8rem;">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+            No members yet.
+        </div>
+        {% endif %}
+
+        <div
+            style="margin-top: 2rem; padding: 1rem; background: rgba(3, 218, 198, 0.1); border-radius: 8px; border: 1px solid var(--success-color);">
+            <div style="font-weight: 600; margin-bottom: 0.5rem;">✅ Shared Data</div>
+            <div style="font-size: 0.9rem; line-height: 1.6; color: var(--text-secondary);">
+                All household members share:
+                <ul style="margin: 0.5rem 0 0 1.5rem;">
+                    <li>Accounts & Balances</li>
+                    <li>Transactions & History</li>
+                    <li>Budgets & Categories</li>
+                    <li>Integrations (Bybit, Trading212)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function copyJoinCode() {
+        const code = document.getElementById('joinCode').innerText;
+        navigator.clipboard.writeText(code).then(() => {
+            alert('Join code copied to clipboard: ' + code);
+        });
+    }
+</script>
+{% endblock %}

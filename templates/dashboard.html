@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-grid">
+    <div class="card stat-card">
+        <span class="stat-label">Net Worth</span>
+        <span class="stat-value">{{ currency_symbol(current_user.household.base_currency) }}{{ "%.2f"|format(net_worth)
+            }}</span>
+        <span class="stat-label" style="color: var(--success-color);">Live Estimate</span>
+        <div style="display: flex; gap: 0.5rem;">
+            <select id="timeRange" onchange="updateChart()"
+                style="padding: 0.2rem; font-size: 0.8rem; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--text-secondary); border-radius: 4px;">
+                <option value="7d">Last 7 Days</option>
+                <option value="30d" selected>Last 30 Days</option>
+                <option value="3m">Last 3 Months</option>
+                <option value="1y">Last Year</option>
+                <option value="all">All Time</option>
+            </select>
+            <select id="resolution" onchange="updateChart()"
+                style="padding: 0.2rem; font-size: 0.8rem; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--text-secondary); border-radius: 4px;">
+                <option value="daily" selected>Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+            </select>
+        </div>
+    </div>
+    <div style="height: 400px;">
+        <canvas id="performanceChart"></canvas>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        Recent Transactions
+    </div>
+    {% if recent_transactions %}
+    <table style="font-size: 0.9rem;">
+        <tbody>
+            {% for t in recent_transactions %}
+            <tr>
+                <td>{{ t.description }}</td>
+                <td
+                    style="text-align: right; color: {% if t.type == 'income' %}var(--success-color){% else %}var(--danger-color){% endif %};">
+                    {{ '+' if t.type == 'income' else '-' }}{{ currency_symbol(t.currency) }}{{
+                    "%.2f"|format(t.amount) }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div style="text-align: center; margin-top: 1rem;">
+        <a href="{{ url_for('transactions') }}" class="btn btn-primary" style="font-size: 0.8rem;">View
+            All</a>
+    </div>
+    {% else %}
+    <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+        No transactions yet.
+    </div>
+    {% endif %}
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let chartInstance = null;
+
+    function updateChart() {
+        const range = document.getElementById('timeRange').value;
+        const resolution = document.getElementById('resolution').value;
+
+        fetch(`/api/history?range=${range}&resolution=${resolution}`)
+            .then(response => response.json())
+            .then(data => {
+                const ctx = document.getElementById('performanceChart').getContext('2d');
+
+                // Generate distinct colors for each account
+                const colors = [
+                    '#03dac6', // success-color (teal)
+                    '#bb86fc', // accent-color (purple)
+                    '#ff6b6b', // red
+                    '#4ecdc4', // cyan
+                    '#ffe66d', // yellow
+                    '#a8e6cf', // mint
+                    '#ffd3b6', // peach
+                    '#ffaaa5', // pink
+                ];
+
+                // Build datasets from API response
+                const datasets = data.datasets.map((dataset, index) => {
+                    const baseName = dataset.label.replace(' (Current)', '').replace(' (Invested)', '');
+
+                    // Simple hash for color stability
+                    let hash = 0;
+                    for (let i = 0; i < baseName.length; i++) {
+                        hash = baseName.charCodeAt(i) + ((hash << 5) - hash);
+                    }
+                    const colorIndex = Math.abs(hash) % colors.length;
+                    const baseColor = colors[colorIndex];
+
+                    const isInvested = dataset.type === 'invested';
+
+                    return {
+                        label: dataset.label,
+                        data: dataset.data,
+                        borderColor: baseColor,
+                        backgroundColor: baseColor + '20', // 20 = 12% opacity
+                        tension: 0.4,
+                        fill: false,
+                        borderWidth: 2,
+                        borderDash: isInvested ? [5, 5] : [], // Dashed for invested
+                        pointStyle: isInvested ? 'rectRot' : 'circle',
+                        radius: 3,
+                        hoverRadius: 6
+                    };
+                });
+
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+
+                chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    color: '#b3b3b3', // text-secondary
+                                    usePointStyle: true,
+                                    padding: 15
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        return context.dataset.label + ': {{ currency_symbol(current_user.household.base_currency) }}' + context.parsed.y.toFixed(2);
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#b3b3b3' },
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                            },
+                            y: {
+                                ticks: {
+                                    color: '#b3b3b3',
+                                    callback: function (value) {
+                                        return '{{ currency_symbol(current_user.household.base_currency) }}' + value.toFixed(0);
+                                    }
+                                },
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' }
+                            }
+                        }
+                    }
+                });
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        updateChart();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 0 auto;">
+    <div class="card-header">
+        Household Settings
+    </div>
+    <form method="POST" action="{{ url_for('settings') }}">
+        <div class="form-group">
+            <label for="base_currency">Base Currency</label>
+            <select id="base_currency" name="base_currency" class="form-control">
+                <option value="USD" {% if current_user.household.base_currency=='USD' %}selected{% endif %}>USD ($)
+                </option>
+                <option value="EUR" {% if current_user.household.base_currency=='EUR' %}selected{% endif %}>EUR (€)
+                </option>
+                <option value="MKD" {% if current_user.household.base_currency=='MKD' %}selected{% endif %}>MKD (den)
+                </option>
+            </select>
+            <small style="color: var(--text-secondary); display: block; margin-top: 0.5rem;">
+                This is the currency used for your Dashboard totals. Changing this will recalculate all historical data.
+            </small>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Save Settings</button>
+    </form>
+</div>
+{% endblock %}

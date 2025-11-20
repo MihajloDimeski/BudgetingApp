@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget App</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <a href="{{ url_for('index') }}" class="navbar-brand">BudgetApp</a>
+        <div class="nav-links">
+            <a href="{{ url_for('index') }}">Dashboard</a>
+            <a href="{{ url_for('transactions') }}">Transactions</a>
+            <a href="{{ url_for('budgets') }}">Budgets</a>
+            <a href="{{ url_for('accounts') }}">Accounts</a>
+            <a href="{{ url_for('household') }}">Household</a>
+            <a href="{{ url_for('settings') }}">Settings</a>
+            <span style="margin-left: 2rem; color: var(--text-secondary);">{{ current_user.username }} ({{
+                current_user.household.name }})</span>
+            <button onclick="toggleTheme()"
+                style="background: none; border: 1px solid var(--text-secondary); color: var(--text-primary); padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; margin-left: 1rem;">🌓</button>
+            <a href="{{ url_for('logout') }}" style="color: var(--danger-color); margin-left: 1rem;">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="card" style="background: rgba(207, 102, 121, 0.2); border-color: var(--danger-color);">
+            {{ messages[0] }}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+        }
+
+        // Init theme
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+
+</body>
+
+</html>
