@@ -1,7 +1,127 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div style="margin-bottom: 2rem; background: var(--bg-secondary); padding: 1.5rem; border-radius: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1rem;">
+        <div>
+            <h2 style="margin: 0; font-size: 1.5rem;">Budget Overview</h2>
+            <div style="color: var(--text-secondary); margin-top: 0.5rem;">
+                Monthly Income vs Broadcasted Expenses
+            </div>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 1.2rem; font-weight: bold; color: var(--success-color);">
+                {{ currency_symbol(current_user.household.base_currency) }}{{ "%.2f"|format(total_expected_income) }}
+            </div>
+            <div style="font-size: 0.9rem; color: var(--text-secondary);">Total Monthly Income</div>
+        </div>
+    </div>
+
+    {% set remaining = total_expected_income - total_budgeted %}
+    <div class="progress-bar"
+        style="background: var(--bg-primary); height: 12px; border-radius: 6px; overflow: hidden; display: flex;">
+        <div style="width: {{ (total_budgeted / total_expected_income * 100)|round if total_expected_income > 0 else 0 }}%; background: var(--accent-color); height: 100%;"
+            title="Allocated: {{ total_budgeted }}"></div>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.9rem;">
+        <span style="color: var(--accent-color);">Allocated: {{ currency_symbol(current_user.household.base_currency)
+            }}{{ "%.2f"|format(total_budgeted) }}</span>
+        <span style="color: {% if remaining < 0 %}var(--danger-color){% else %}var(--text-secondary){% endif %};">
+            Remaining: {{ currency_symbol(current_user.household.base_currency) }}{{ "%.2f"|format(remaining) }}
+        </span>
+    </div>
+</div>
+
 <div class="dashboard-grid" style="grid-template-columns: 1fr 2fr;">
+    <div class="card">
+        <div class="card-header">Income Sources</div>
+        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Your recurring income streams (Paychecks, etc.)
+        </p>
+
+        {% for inc in income_sources %}
+        <div style="background: var(--bg-primary); padding: 0.8rem; border-radius: 8px; margin-bottom: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <div>
+                    <div style="font-weight: 600;">{{ inc.description }}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">{{ inc.frequency|capitalize }}</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="color: var(--success-color);">+{{ currency_symbol(inc.currency) }}{{
+                        "%.2f"|format(inc.amount) }}</div>
+                    <a href="{{ url_for('delete_recurring', id=inc.id) }}"
+                        style="color: var(--danger-color); font-size: 0.8rem; text-decoration: none;">Remove</a>
+                </div>
+            </div>
+
+            <!-- Spending Progress for Paycheck -->
+            <div style="margin-top: 0.5rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 2px;">
+                    <span style="color: var(--text-secondary);">Spent: {{ currency_symbol(inc.currency) }}{{
+                        "%.2f"|format(inc.spent) }}</span>
+                    <span style="color: var(--text-secondary);">Remaining: {{ currency_symbol(inc.currency) }}{{
+                        "%.2f"|format(inc.remaining) }}</span>
+                </div>
+                <div class="progress-bar"
+                    style="background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; overflow: hidden; display: flex;">
+                    <div style="width: {{ inc.progress }}%; background: var(--accent-color); height: 100%;"></div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div style="text-align: center; color: var(--text-secondary); padding: 1rem;">No income sources yet.</div>
+        {% endfor %}
+
+        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 1rem 0;">
+
+        <form action="{{ url_for('add_recurring') }}" method="POST">
+            <input type="hidden" name="type" value="income">
+            <div class="form-group">
+                <input type="text" name="description" class="form-control" placeholder="Source (e.g. Salary)" required
+                    style="margin-bottom: 0.5rem;">
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="number" step="0.01" name="amount" class="form-control" placeholder="Amount" required
+                        style="flex: 2;">
+                    <select name="currency" class="form-control" style="flex: 1;">
+                        <option value="USD" {% if current_user.household.base_currency=='USD' %}selected{% endif %}>USD
+                        </option>
+                        <option value="EUR" {% if current_user.household.base_currency=='EUR' %}selected{% endif %}>EUR
+                        </option>
+                        <option value="MKD" {% if current_user.household.base_currency=='MKD' %}selected{% endif %}>MKD
+                        </option>
+                    </select>
+                    <select name="frequency" class="form-control" style="flex: 1;">
+                        <option value="monthly" selected>Monthly</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Next Pay Day</label>
+                <input type="date" name="next_due_date" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <!-- Hidden logic: we need a category for recurring txn? Yes models requires category_id? Nullable? -->
+                <!-- Models: category_id is Nullable for RecurringTransaction (line 86) -->
+                <!-- But app.py:319 says 'int(category_id) if category_id else None' -->
+                <!-- Let's try to find an 'Income' category to attach to, or create one? -->
+                <!-- Actually, for simplicity, let's leave category_id null for Paychecks or let user pick? -->
+                <!-- User wants separate accounts. Let's just store as None category for now, or pick first Income category -->
+                <select name="category_id" class="form-control">
+                    <option value="">No Category</option>
+                    {% for c in categories %}
+                    {% if c.type == 'income' %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-success" style="width: 100%; font-size: 0.9rem;">Add Income
+                Source</button>
+        </form>
+    </div>
+
     <div class="card">
         <div class="card-header">Manage Categories</div>
         <form action="{{ url_for('add_category') }}" method="POST">
@@ -56,7 +176,7 @@
     </div>
 
     <div class="card">
-        <div class="card-header">Budget Allocations (Monthly)</div>
+        <div class="card-header">Expense Budgets (Monthly)</div>
 
         <div class="dashboard-grid" style="grid-template-columns: 1fr; gap: 1rem;">
             {% for b in budgets %}
@@ -92,7 +212,9 @@
                 <label>Category</label>
                 <select name="category_id" class="form-control">
                     {% for c in categories %}
+                    {% if c.type != 'income' %}
                     <option value="{{ c.id }}">{{ c.name }}</option>
+                    {% endif %}
                     {% endfor %}
                 </select>
             </div>

@@ -3,6 +3,9 @@
 {% block content %}
 <div class="dashboard-grid" style="grid-template-columns: 1fr 2fr;">
     <div class="card">
+        {% if edit_transaction %}
+        <div class="card-header">Edit Transaction</div>
+        {% else %}
         <div class="card-header">Add Transaction</div>
 
         <div class="tabs" style="margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1);">
@@ -11,13 +14,16 @@
             <div class="tab" onclick="showForm('recurring')"
                 style="padding: 0.5rem; cursor: pointer; color: var(--text-secondary);">Recurring</div>
         </div>
+        {% endif %}
 
-        <form id="one-time-form" action="{{ url_for('transactions') }}" method="POST">
+        <form id="one-time-form"
+            action="{{ url_for('update_transaction', id=edit_transaction.id) if edit_transaction else url_for('transactions') }}"
+            method="POST">
             <div class="form-group">
                 <label>Amount</label>
                 <div style="display: flex; gap: 0.5rem;">
                     <input type="number" step="0.01" name="amount" class="form-control" required placeholder="0.00"
-                        style="flex: 2;">
+                        style="flex: 2;" value="{{ edit_transaction.amount if edit_transaction else '' }}">
                     <select name="currency" class="form-control" style="flex: 1;">
                         <option value="USD" {% if current_user.household.base_currency=='USD' %}selected{% endif %}>USD
                         </option>
@@ -31,15 +37,19 @@
 
             <div class="form-group">
                 <label>Description</label>
-                <input type="text" name="description" class="form-control" required placeholder="e.g. Groceries">
+                <input type="text" name="description" class="form-control" required placeholder="e.g. Groceries"
+                    value="{{ edit_transaction.description if edit_transaction else '' }}">
             </div>
 
             <div class="form-group">
                 <label>Type</label>
                 <select name="type" id="type-select" class="form-control" onchange="toggleIntegration()">
-                    <option value="expense">Expense</option>
-                    <option value="income">Income</option>
-                    <option value="investment">Investment</option>
+                    <option value="expense" {% if edit_transaction and edit_transaction.type=='expense' %}selected{%
+                        endif %}>Expense</option>
+                    <option value="income" {% if edit_transaction and edit_transaction.type=='income' %}selected{% endif
+                        %}>Income</option>
+                    <option value="investment" {% if edit_transaction and edit_transaction.type=='investment'
+                        %}selected{% endif %}>Investment</option>
                 </select>
             </div>
 
@@ -58,17 +68,35 @@
                 <select name="category_id" class="form-control">
                     <option value="">-- No Category --</option>
                     {% for cat in categories %}
-                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                    <option value="{{ cat.id }}" {% if edit_transaction and edit_transaction.category_id==cat.id
+                        %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" id="income-source-group">
+                <label id="income-source-label">Funded By (Optional)</label>
+                <select name="income_source_id" class="form-control">
+                    <option value="">-- General Fund / None --</option>
+                    {% for inc in income_sources %}
+                    <option value="{{ inc.id }}" {% if edit_transaction and edit_transaction.income_source_id==inc.id
+                        %}selected{% endif %}>{{ inc.description }}</option>
                     {% endfor %}
                 </select>
             </div>
 
             <div class="form-group">
                 <label>Date</label>
-                <input type="date" name="date" class="form-control" value="{{ today }}">
+                <input type="date" name="date" class="form-control"
+                    value="{{ edit_transaction.date.strftime('%Y-%m-%d') if edit_transaction else today }}">
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width: 100%;">Add Transaction</button>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">{{ 'Update Transaction' if
+                edit_transaction else 'Add Transaction' }}</button>
+            {% if edit_transaction %}
+            <a href="{{ url_for('transactions') }}" class="btn btn-secondary"
+                style="width: 100%; margin-top: 0.5rem; text-align: center; display: block; background: var(--text-secondary); color: var(--bg-primary);">Cancel</a>
+            {% endif %}
         </form>
 
         <form id="recurring-form" action="{{ url_for('add_recurring') }}" method="POST" class="hidden"
@@ -142,6 +170,7 @@
                     <th>Date</th>
                     <th>Description</th>
                     <th>Category</th>
+                    <th>Funded By</th>
                     <th>Amount</th>
                     <th>Action</th>
                 </tr>
@@ -152,6 +181,15 @@
                     <td>{{ t.date.strftime('%Y-%m-%d') }}</td>
                     <td>{{ t.description }}</td>
                     <td>{{ t.category.name if t.category else '-' }}</td>
+                    <td>
+                        {% if t.income_source %}
+                        <span
+                            style="font-size: 0.8rem; background: var(--bg-primary); padding: 2px 6px; border-radius: 4px;">{{
+                            t.income_source.description }}</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
                     <td
                         style="color: {% if t.type == 'income' %}var(--success-color){% elif t.type == 'investment' %}var(--accent-color){% else %}var(--danger-color){% endif %}; font-weight: bold;">
                         {{ '+' if t.type == 'income' or t.type == 'investment' else '-' }}{{ currency_symbol(t.currency)
@@ -159,9 +197,12 @@
                         "%.2f"|format(t.amount) }}
                     </td>
                     <td>
+                        <a href="{{ url_for('edit_transaction', id=t.id) }}"
+                            style="color: var(--accent-color); text-decoration: none; margin-right: 0.5rem;"
+                            title="Edit">&#9998;</a>
                         <a href="{{ url_for('delete_transaction', id=t.id) }}"
                             style="color: var(--text-secondary); text-decoration: none;"
-                            onclick="return confirm('Are you sure?')">&times;</a>
+                            onclick="return confirm('Delete transaction?')">&times;</a>
                     </td>
                 </tr>
                 {% else %}
@@ -234,12 +275,25 @@
     function toggleIntegration() {
         const type = document.getElementById('type-select').value;
         const group = document.getElementById('integration-group');
+        const sourceLabel = document.getElementById('income-source-label');
+
         if (type === 'investment') {
             group.style.display = 'block';
+            sourceLabel.innerText = "Funded By (Optional)";
+        } else if (type === 'income') {
+            group.style.display = 'none';
+            group.querySelector('select').value = ""; // reset
+            sourceLabel.innerText = "Add to Source (Optional - Top up)";
         } else {
             group.style.display = 'none';
             group.querySelector('select').value = ""; // reset
+            sourceLabel.innerText = "Funded By (Optional)";
         }
     }
+
+    // Call on load to set initial state
+    document.addEventListener("DOMContentLoaded", function () {
+        toggleIntegration();
+    });
 </script>
 {% endblock %}

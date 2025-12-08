@@ -257,6 +257,7 @@ def transactions():
         category_id = request.form.get('category_id')
         currency = request.form.get('currency', 'USD')
         integration_id = request.form.get('integration_id')
+        income_source_id = request.form.get('income_source_id')
         
         date = datetime.strptime(date_str, '%Y-%m-%d') if date_str else datetime.utcnow()
         
@@ -274,6 +275,9 @@ def transactions():
                     # Convert to account currency
                     amount_in_account_currency = CurrencyConverter.convert(amount, currency, account.currency)
                     account.invested_amount += amount_in_account_currency
+                    flash(f"Investment added to {integration.platform} tracker ({account.currency} {amount_in_account_currency:.2f})", 'success')
+                else:
+                    flash(f"Warning: Could not find linked account '{account_name}'", 'warning')
         
         t = Transaction(
             amount=amount,
@@ -283,6 +287,7 @@ def transactions():
             type=type,
             date=date,
             category_id=int(category_id) if category_id else None,
+            income_source_id=int(income_source_id) if income_source_id else None,
             user_id=current_user.id,
             household_id=current_user.household_id
         )
@@ -294,8 +299,9 @@ def transactions():
     recurring = RecurringTransaction.query.filter_by(household_id=current_user.household_id).all()
     categories = Category.query.filter_by(household_id=current_user.household_id).all()
     integrations = Integration.query.filter_by(household_id=current_user.household_id).all()
+    income_sources = RecurringTransaction.query.filter_by(household_id=current_user.household_id, type='income').all()
     
-    return render_template('transactions.html', transactions=transactions, recurring=recurring, categories=categories, integrations=integrations, today=datetime.utcnow().strftime('%Y-%m-%d'))
+    return render_template('transactions.html', transactions=transactions, recurring=recurring, categories=categories, integrations=integrations, income_sources=income_sources, today=datetime.utcnow().strftime('%Y-%m-%d'))
 
 @app.route('/add_recurring', methods=['POST'])
 @login_required
@@ -380,38 +386,133 @@ def delete_transaction(id):
         db.session.commit()
     return redirect(url_for('transactions'))
 
+@app.route('/transactions/edit/<int:id>')
+@login_required
+def edit_transaction(id):
+    t = Transaction.query.get_or_404(id)
+    if t.household_id != current_user.household_id:
+        flash('Transaction not found', 'danger')
+        return redirect(url_for('transactions'))
+        
+    # Load context for the template
+    transactions = Transaction.query.filter_by(household_id=current_user.household_id).order_by(Transaction.date.desc()).all()
+    recurring = RecurringTransaction.query.filter_by(household_id=current_user.household_id).all()
+    categories = Category.query.filter_by(household_id=current_user.household_id).all()
+    integrations = Integration.query.filter_by(household_id=current_user.household_id).all()
+    income_sources = RecurringTransaction.query.filter_by(household_id=current_user.household_id, type='income').all()
+    
+    return render_template('transactions.html', 
+                         transactions=transactions, 
+                         recurring=recurring, 
+                         categories=categories, 
+                         integrations=integrations, 
+                         income_sources=income_sources, 
+                         today=datetime.utcnow().strftime('%Y-%m-%d'),
+                         edit_transaction=t)
+
+@app.route('/transactions/update/<int:id>', methods=['POST'])
+@login_required
+def update_transaction(id):
+    t = Transaction.query.get_or_404(id)
+    if t.household_id != current_user.household_id:
+        flash('Transaction not found', 'danger')
+        return redirect(url_for('transactions'))
+        
+    amount = float(request.form.get('amount'))
+    description = request.form.get('description')
+    type = request.form.get('type')
+    date_str = request.form.get('date')
+    category_id = request.form.get('category_id')
+    currency = request.form.get('currency', 'USD')
+    income_source_id = request.form.get('income_source_id')
+    
+    date = datetime.strptime(date_str, '%Y-%m-%d') if date_str else datetime.utcnow()
+    
+    base_currency = current_user.household.base_currency
+    amount_in_base = CurrencyConverter.convert(amount, currency, base_currency)
+    
+    t.amount = amount
+    t.currency = currency
+    t.amount_in_base_currency = amount_in_base
+    t.description = description
+    t.type = type
+    t.date = date
+    t.category_id = int(category_id) if category_id else None
+    t.income_source_id = int(income_source_id) if income_source_id else None
+    
+    db.session.commit()
+    flash('Transaction updated successfully', 'success')
+    return redirect(url_for('transactions'))
+
 @app.route('/budgets')
 @login_required
 def budgets():
     categories = Category.query.filter_by(household_id=current_user.household_id).all()
-    budgets = Budget.query.filter_by(household_id=current_user.household_id).all()
+    # Filter out income budgets, we handle them separately
+    expense_budgets = Budget.query.join(Category).filter(
+        Budget.household_id == current_user.household_id,
+        Category.type != 'income'
+    ).all()
     
-    all_transactions = Transaction.query.filter_by(household_id=current_user.household_id).all()
-    total_expenses = sum(t.amount for t in all_transactions if t.type == 'expense')
+    # Get Income Sources
+    income_sources = RecurringTransaction.query.filter_by(household_id=current_user.household_id, type='income').all()
     
-    for b in budgets:
+    # Calculate spent amount for each income source
+    for inc in income_sources:
+        inc_spent = 0
+        linked_transactions = Transaction.query.filter_by(income_source_id=inc.id).all()
+        for t in linked_transactions:
+            # Convert transaction amount to the income source's currency
+            amount_converted = CurrencyConverter.convert(t.amount, t.currency, inc.currency)
+            if t.type == 'income':
+                # If transaction is income (e.g. cash added), it reduces the 'spent' amount (increases remaining)
+                inc_spent -= amount_converted
+            else:
+                # Expenses or Investments increase spent amount
+                inc_spent += amount_converted
+        inc.spent = inc_spent
+        inc.remaining = inc.amount - inc_spent
+        # Avoid division by zero for progress bar
+        inc.progress = (inc.spent / inc.amount * 100) if inc.amount > 0 else 0
+
+    # Calculate Total Expected Income (Monthly)
+    total_expected_income = 0
+    base_currency = current_user.household.base_currency
+    for inc in income_sources:
+        # Normalize to monthly for the total
+        monthly_amount = 0
+        if inc.frequency == 'monthly':
+            monthly_amount = inc.amount
+        elif inc.frequency == 'weekly':
+            monthly_amount = inc.amount * 4
+        elif inc.frequency == 'yearly':
+            monthly_amount = inc.amount / 12
+        
+        # Convert to base currency for the total
+        total_expected_income += CurrencyConverter.convert(monthly_amount, inc.currency, current_user.household.base_currency)
+        
+    # Calculate Total Budgeted (Expenses)
+    total_budgeted = 0
+    for b in expense_budgets:
+        total_budgeted += CurrencyConverter.convert(b.amount_limit, b.currency, base_currency)
+        
+        # Calculate spent for this budget
         spent = 0
         category_transactions = Transaction.query.filter_by(category_id=b.category_id, household_id=current_user.household_id).all()
         
-        if b.category.type == 'income':
-            category_income = 0
-            category_expenses = 0
-            for t in category_transactions:
-                if t.type == 'income':
-                    category_income += CurrencyConverter.convert(t.amount, t.currency, b.currency)
-                elif t.type == 'expense':
-                    category_expenses += CurrencyConverter.convert(t.amount, t.currency, b.currency)
-            
-            spent = category_income - category_expenses
-            
-        else:
-            for t in category_transactions:
-                if t.type == 'expense':
-                    spent += CurrencyConverter.convert(t.amount, t.currency, b.currency)
+        # For expense budgets, we sum expenses
+        for t in category_transactions:
+            if t.type in ['expense', 'investment']:
+                spent += CurrencyConverter.convert(t.amount, t.currency, b.currency)
         
         b.spent = spent
 
-    return render_template('budgets.html', budgets=budgets, categories=categories)
+    return render_template('budgets.html', 
+                         budgets=expense_budgets, 
+                         categories=categories,
+                         income_sources=income_sources,
+                         total_expected_income=total_expected_income,
+                         total_budgeted=total_budgeted)
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required

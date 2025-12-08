@@ -72,6 +72,8 @@ class Transaction(db.Model):
     date = db.Column(db.DateTime, default=datetime.utcnow)
     type = db.Column(db.String(20), nullable=False) # 'income', 'expense'
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
+    income_source_id = db.Column(db.Integer, db.ForeignKey('recurring_transaction.id'), nullable=True)
+    income_source = db.relationship('RecurringTransaction', backref='funded_transactions', lazy=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
 
