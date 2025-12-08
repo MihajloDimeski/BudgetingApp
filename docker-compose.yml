@@ -4,7 +4,7 @@ services:
   web:
     build: .
     ports:
-      - "5000:5000"
+      - "5002:5002"
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/budgetdb
       - SECRET_KEY=dev_secret_key_change_in_prod
@@ -25,6 +25,15 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - budget_network
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: unless-stopped
+    environment:
+      NGROK_AUTHTOKEN: 2ThXrMMqScS6b4iXZAhYRTNfqoJ_23XgyPqbBkA2FWE4dWBif
+    command: http --url=amusing-firefly-positive.ngrok-free.app 5002
+    network_mode: "host"
+
 
 volumes:
   postgres_data:

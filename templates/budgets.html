@@ -75,7 +75,7 @@
                 <div class="progress-bar"
                     style="background: var(--bg-primary); height: 8px; border-radius: 4px; overflow: hidden;">
                     <div class="progress-fill"
-                        style="height: 100%; width: {{ (b.spent / b.amount_limit * 100)|round }}%; background: {% if b.spent > b.amount_limit %}var(--danger-color){% else %}var(--success-color){% endif %};">
+                        style="height: 100%; width: {{ (b.spent / b.amount_limit * 100)|round if b.amount_limit > 0 else (100 if b.spent > 0 else 0) }}%; background: {% if b.spent > b.amount_limit %}var(--danger-color){% else %}var(--success-color){% endif %};">
                     </div>
                 </div>
             </div>

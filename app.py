@@ -114,7 +114,7 @@ def index():
     integrations = household.integrations
     should_sync = False
     for i in integrations:
-        if not i.last_synced or (datetime.utcnow() - i.last_synced).total_seconds() > 3600:
+        if not i.last_synced or (datetime.utcnow() - i.last_synced).total_seconds() > 86400:
             should_sync = True
             break
             
@@ -252,15 +252,28 @@ def transactions():
     if request.method == 'POST':
         amount = float(request.form.get('amount'))
         description = request.form.get('description')
-        type = request.form.get('type')
+        type = request.form.get('type') # 'income', 'expense', 'investment'
         date_str = request.form.get('date')
         category_id = request.form.get('category_id')
         currency = request.form.get('currency', 'USD')
+        integration_id = request.form.get('integration_id')
         
         date = datetime.strptime(date_str, '%Y-%m-%d') if date_str else datetime.utcnow()
         
         base_currency = current_user.household.base_currency
         amount_in_base = CurrencyConverter.convert(amount, currency, base_currency)
+        
+        # Handle Investment Logic
+        if type == 'investment' and integration_id:
+            integration = Integration.query.get(integration_id)
+            if integration and integration.household_id == current_user.household_id:
+                # Find associated account
+                account_name = f"{integration.platform.capitalize()} Account"
+                account = Account.query.filter_by(name=account_name, household_id=current_user.household_id).first()
+                if account:
+                    # Convert to account currency
+                    amount_in_account_currency = CurrencyConverter.convert(amount, currency, account.currency)
+                    account.invested_amount += amount_in_account_currency
         
         t = Transaction(
             amount=amount,
@@ -280,8 +293,9 @@ def transactions():
     transactions = Transaction.query.filter_by(household_id=current_user.household_id).order_by(Transaction.date.desc()).all()
     recurring = RecurringTransaction.query.filter_by(household_id=current_user.household_id).all()
     categories = Category.query.filter_by(household_id=current_user.household_id).all()
+    integrations = Integration.query.filter_by(household_id=current_user.household_id).all()
     
-    return render_template('transactions.html', transactions=transactions, recurring=recurring, categories=categories, today=datetime.utcnow().strftime('%Y-%m-%d'))
+    return render_template('transactions.html', transactions=transactions, recurring=recurring, categories=categories, integrations=integrations, today=datetime.utcnow().strftime('%Y-%m-%d'))
 
 @app.route('/add_recurring', methods=['POST'])
 @login_required
@@ -291,13 +305,18 @@ def add_recurring():
     frequency = request.form.get('frequency')
     next_due_str = request.form.get('next_due_date')
     next_due_date = datetime.strptime(next_due_str, '%Y-%m-%d')
+    type = request.form.get('type', 'expense')
+    currency = request.form.get('currency', 'USD')
+    category_id = request.form.get('category_id')
     
     r = RecurringTransaction(
         amount=amount,
         description=description,
         frequency=frequency,
         next_due_date=next_due_date,
-        type='expense',
+        type=type,
+        currency=currency,
+        category_id=int(category_id) if category_id else None,
         household_id=current_user.household_id
     )
     db.session.add(r)
@@ -322,11 +341,18 @@ def check_recurring():
     count = 0
     for r in recurring:
         if r.next_due_date <= today:
+            # Calculate amount in base currency
+            base_currency = current_user.household.base_currency
+            amount_in_base = CurrencyConverter.convert(r.amount, r.currency, base_currency)
+
             t = Transaction(
                 amount=r.amount,
+                currency=r.currency,
+                amount_in_base_currency=amount_in_base,
                 description=f"{r.description} (Recurring)",
                 type=r.type,
                 date=today,
+                category_id=r.category_id,
                 user_id=current_user.id,
                 household_id=current_user.household_id
             )
@@ -369,12 +395,14 @@ def budgets():
         
         if b.category.type == 'income':
             category_income = 0
+            category_expenses = 0
             for t in category_transactions:
                 if t.type == 'income':
                     category_income += CurrencyConverter.convert(t.amount, t.currency, b.currency)
+                elif t.type == 'expense':
+                    category_expenses += CurrencyConverter.convert(t.amount, t.currency, b.currency)
             
-            total_expenses_in_budget_currency = CurrencyConverter.convert(total_expenses, current_user.household.base_currency, b.currency)
-            spent = category_income - total_expenses_in_budget_currency
+            spent = category_income - category_expenses
             
         else:
             for t in category_transactions:
@@ -623,4 +651,4 @@ def api_history():
     return jsonify({'datasets': datasets, 'labels': labels})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5002, debug=True)

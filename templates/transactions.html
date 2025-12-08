@@ -36,9 +36,20 @@
 
             <div class="form-group">
                 <label>Type</label>
-                <select name="type" class="form-control">
+                <select name="type" id="type-select" class="form-control" onchange="toggleIntegration()">
                     <option value="expense">Expense</option>
                     <option value="income">Income</option>
+                    <option value="investment">Investment</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="integration-group" style="display: none;">
+                <label>Target Integration (for Investment)</label>
+                <select name="integration_id" class="form-control">
+                    <option value="">-- Select Integration --</option>
+                    {% for i in integrations %}
+                    <option value="{{ i.id }}">{{ i.platform|capitalize }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
@@ -84,6 +95,24 @@
             </div>
 
             <div class="form-group">
+                <label>Type</label>
+                <select name="type" class="form-control">
+                    <option value="expense">Expense</option>
+                    <option value="income">Income</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Category (Optional)</label>
+                <select name="category_id" class="form-control">
+                    <option value="">-- No Category --</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
                 <label>Frequency</label>
                 <select name="frequency" class="form-control">
                     <option value="monthly">Monthly</option>
@@ -124,8 +153,9 @@
                     <td>{{ t.description }}</td>
                     <td>{{ t.category.name if t.category else '-' }}</td>
                     <td
-                        style="color: {% if t.type == 'income' %}var(--success-color){% else %}var(--danger-color){% endif %}; font-weight: bold;">
-                        {{ '+' if t.type == 'income' else '-' }}{{ currency_symbol(t.currency) }}{{
+                        style="color: {% if t.type == 'income' %}var(--success-color){% elif t.type == 'investment' %}var(--accent-color){% else %}var(--danger-color){% endif %}; font-weight: bold;">
+                        {{ '+' if t.type == 'income' or t.type == 'investment' else '-' }}{{ currency_symbol(t.currency)
+                        }}{{
                         "%.2f"|format(t.amount) }}
                     </td>
                     <td>
@@ -149,6 +179,7 @@
                 <thead>
                     <tr>
                         <th>Description</th>
+                        <th>Category</th>
                         <th>Amount</th>
                         <th>Frequency</th>
                         <th>Next Due</th>
@@ -159,7 +190,12 @@
                     {% for r in recurring %}
                     <tr>
                         <td>{{ r.description }}</td>
-                        <td>{{ currency_symbol(r.currency) }}{{ "%.2f"|format(r.amount) }}</td>
+                        <td>{{ r.category.name if r.category else '-' }}</td>
+                        <td
+                            style="color: {% if r.type == 'income' %}var(--success-color){% else %}var(--danger-color){% endif %}; font-weight: bold;">
+                            {{ '+' if r.type == 'income' else '-' }}{{ currency_symbol(r.currency) }}{{
+                            "%.2f"|format(r.amount) }}
+                        </td>
                         <td>{{ r.frequency|capitalize }}</td>
                         <td>{{ r.next_due_date.strftime('%Y-%m-%d') }}</td>
                         <td>
@@ -169,7 +205,8 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" style="text-align: center; color: var(--text-secondary);">No recurring expenses.
+                        <td colspan="5" style="text-align: center; color: var(--text-secondary);">No recurring
+                            transactions.
                         </td>
                     </tr>
                     {% endfor %}
@@ -191,6 +228,17 @@
             document.getElementById('recurring-form').style.display = 'block';
             document.querySelectorAll('.tab')[0].classList.remove('active');
             document.querySelectorAll('.tab')[1].classList.add('active');
+        }
+    }
+
+    function toggleIntegration() {
+        const type = document.getElementById('type-select').value;
+        const group = document.getElementById('integration-group');
+        if (type === 'investment') {
+            group.style.display = 'block';
+        } else {
+            group.style.display = 'none';
+            group.querySelector('select').value = ""; // reset
         }
     }
 </script>
