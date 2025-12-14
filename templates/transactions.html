@@ -159,20 +159,27 @@
     </div>
 
     <div class="card">
-        <div class="card-header">
-            <span>History</span>
-            <a href="{{ url_for('check_recurring') }}" class="btn btn-primary" style="font-size: 0.8rem;">Check Due</a>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div class="card-header" style="margin-bottom: 0;">Transaction History</div>
+            <div class="month-nav"
+                style="background: var(--bg-primary); padding: 0.2rem 0.5rem; border-radius: 20px; font-size: 0.8rem; display: flex; gap: 0.5rem; align-items: center;">
+                <a href="{{ url_for('transactions', month=prev_month, year=prev_year) }}"
+                    style="color: var(--text-primary); text-decoration: none;">&lt;</a>
+                <span style="font-weight: 600;">{{ month_name }} {{ year }}</span>
+                <a href="{{ url_for('transactions', month=next_month, year=next_year) }}"
+                    style="color: var(--text-primary); text-decoration: none;">&gt;</a>
+            </div>
         </div>
 
-        <table>
+        <table class="table">
             <thead>
                 <tr>
                     <th>Date</th>
                     <th>Description</th>
                     <th>Category</th>
                     <th>Funded By</th>
-                    <th>Amount</th>
-                    <th>Action</th>
+                    <th style="text-align: right;">Amount</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>

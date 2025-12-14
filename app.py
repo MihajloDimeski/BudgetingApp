@@ -295,13 +295,57 @@ def transactions():
         db.session.commit()
         return redirect(url_for('transactions'))
     
-    transactions = Transaction.query.filter_by(household_id=current_user.household_id).order_by(Transaction.date.desc()).all()
+    # Date Filtering Logic
+    now = datetime.utcnow()
+    try:
+        month = int(request.args.get('month', now.month))
+        year = int(request.args.get('year', now.year))
+    except (ValueError, TypeError):
+        month = now.month
+        year = now.year
+
+    # Calculate start and end date of the month
+    import calendar
+    num_days = calendar.monthrange(year, month)[1]
+    start_date = datetime(year, month, 1)
+    end_date = datetime(year, month, num_days, 23, 59, 59)
+    
+    # Navigation Logic
+    curr_date = datetime(year, month, 1)
+    prev_date = curr_date - timedelta(days=1)
+    next_date = curr_date + timedelta(days=32)
+    next_date = datetime(next_date.year, next_date.month, 1)
+    
+    prev_month = prev_date.month
+    prev_year = prev_date.year
+    next_month = next_date.month
+    next_year = next_date.year
+
+    transactions = Transaction.query.filter(
+        Transaction.household_id==current_user.household_id,
+        Transaction.date >= start_date,
+        Transaction.date <= end_date
+    ).order_by(Transaction.date.desc()).all()
+    
     recurring = RecurringTransaction.query.filter_by(household_id=current_user.household_id).all()
     categories = Category.query.filter_by(household_id=current_user.household_id).all()
     integrations = Integration.query.filter_by(household_id=current_user.household_id).all()
     income_sources = RecurringTransaction.query.filter_by(household_id=current_user.household_id, type='income').all()
     
-    return render_template('transactions.html', transactions=transactions, recurring=recurring, categories=categories, integrations=integrations, income_sources=income_sources, today=datetime.utcnow().strftime('%Y-%m-%d'))
+    return render_template('transactions.html', 
+                         transactions=transactions, 
+                         recurring=recurring, 
+                         categories=categories, 
+                         integrations=integrations, 
+                         income_sources=income_sources, 
+                         today=datetime.utcnow().strftime('%Y-%m-%d'),
+                         month=month,
+                         year=year,
+                         prev_month=prev_month,
+                         prev_year=prev_year,
+                         next_month=next_month,
+                         next_year=next_year,
+                         month_name=calendar.month_name[month])
 
 @app.route('/add_recurring', methods=['POST'])
 @login_required
@@ -447,6 +491,32 @@ def update_transaction(id):
 @app.route('/budgets')
 @login_required
 def budgets():
+    # Date Filtering Logic
+    now = datetime.utcnow()
+    try:
+        month = int(request.args.get('month', now.month))
+        year = int(request.args.get('year', now.year))
+    except (ValueError, TypeError):
+        month = now.month
+        year = now.year
+
+    # Calculate start and end date of the month
+    import calendar
+    num_days = calendar.monthrange(year, month)[1]
+    start_date = datetime(year, month, 1)
+    end_date = datetime(year, month, num_days, 23, 59, 59)
+    
+    # Navigation Logic
+    curr_date = datetime(year, month, 1)
+    prev_date = curr_date - timedelta(days=1)
+    next_date = curr_date + timedelta(days=32)
+    next_date = datetime(next_date.year, next_date.month, 1)
+    
+    prev_month = prev_date.month
+    prev_year = prev_date.year
+    next_month = next_date.month
+    next_year = next_date.year
+
     categories = Category.query.filter_by(household_id=current_user.household_id).all()
     # Filter out income budgets, we handle them separately
     expense_budgets = Budget.query.join(Category).filter(
@@ -458,9 +528,69 @@ def budgets():
     income_sources = RecurringTransaction.query.filter_by(household_id=current_user.household_id, type='income').all()
     
     # Calculate spent amount for each income source
+    # Calculate spent amount and rollover for each income source
     for inc in income_sources:
+        # 1. Calculate Rollover (Accumulated Surplus from previous months)
+        rollover = 0
+        
+        # Find start date (earliest transaction or arbitrary start)
+        first_txn = Transaction.query.filter(
+            Transaction.income_source_id == inc.id
+        ).order_by(Transaction.date.asc()).first()
+        
+        if first_txn:
+            # Iteratively calculate surplus for previous months
+            # Start from the month of the first transaction
+            curr_iter_date = first_txn.date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            target_date = datetime(year, month, 1) # The month currently being viewed
+            
+            while curr_iter_date < target_date:
+                # Calculate start/end of iter month
+                import calendar
+                c_num_days = calendar.monthrange(curr_iter_date.year, curr_iter_date.month)[1]
+                c_start = curr_iter_date
+                c_end = datetime(curr_iter_date.year, curr_iter_date.month, c_num_days, 23, 59, 59)
+                
+                # Query spending for this past month
+                past_txns = Transaction.query.filter(
+                    Transaction.income_source_id == inc.id,
+                    Transaction.date >= c_start,
+                    Transaction.date <= c_end
+                ).all()
+                
+                past_month_spent = 0
+                for t in past_txns:
+                    amt = CurrencyConverter.convert(t.amount, t.currency, inc.currency)
+                    if t.type == 'income': 
+                         past_month_spent -= amt
+                    else:
+                         past_month_spent += amt
+                
+                # Surplus = Income - Spent
+                # Assumption: Income was same amount back then.
+                monthly_surplus = inc.amount - past_month_spent
+                rollover += monthly_surplus
+                
+                # Move to next month
+                # safe add month
+                next_month_iter = c_start.month + 1
+                next_year_iter = c_start.year
+                if next_month_iter > 12:
+                    next_month_iter = 1
+                    next_year_iter += 1
+                curr_iter_date = datetime(next_year_iter, next_month_iter, 1)
+
+        inc.rollover = rollover
+
+        # 2. Calculate Current Month Status
         inc_spent = 0
-        linked_transactions = Transaction.query.filter_by(income_source_id=inc.id).all()
+        # Filter Linked Transactions by Date Range
+        linked_transactions = Transaction.query.filter(
+            Transaction.income_source_id == inc.id,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date
+        ).all()
+        
         for t in linked_transactions:
             # Convert transaction amount to the income source's currency
             amount_converted = CurrencyConverter.convert(t.amount, t.currency, inc.currency)
@@ -470,10 +600,20 @@ def budgets():
             else:
                 # Expenses or Investments increase spent amount
                 inc_spent += amount_converted
+        
         inc.spent = inc_spent
-        inc.remaining = inc.amount - inc_spent
-        # Avoid division by zero for progress bar
-        inc.progress = (inc.spent / inc.amount * 100) if inc.amount > 0 else 0
+        
+        # Total Available = Monthly Amount + Rollover
+        total_available = inc.amount + inc.rollover
+        
+        inc.remaining = total_available - inc_spent
+        
+        # Progress: Usage against Total Available
+        # Avoid division by zero
+        if total_available > 0:
+            inc.progress = (inc.spent / total_available * 100)
+        else:
+            inc.progress = 100 if inc.spent > 0 else 0
 
     # Calculate Total Expected Income (Monthly)
     total_expected_income = 0
@@ -498,7 +638,13 @@ def budgets():
         
         # Calculate spent for this budget
         spent = 0
-        category_transactions = Transaction.query.filter_by(category_id=b.category_id, household_id=current_user.household_id).all()
+        # Filter Category Transactions by Date Range and Household
+        category_transactions = Transaction.query.filter(
+            Transaction.category_id == b.category_id, 
+            Transaction.household_id == current_user.household_id,
+            Transaction.date >= start_date,
+            Transaction.date <= end_date
+        ).all()
         
         # For expense budgets, we sum expenses
         for t in category_transactions:
@@ -512,7 +658,14 @@ def budgets():
                          categories=categories,
                          income_sources=income_sources,
                          total_expected_income=total_expected_income,
-                         total_budgeted=total_budgeted)
+                         total_budgeted=total_budgeted,
+                         month=month,
+                         year=year,
+                         prev_month=prev_month,
+                         prev_year=prev_year,
+                         next_month=next_month,
+                         next_year=next_year,
+                         month_name=calendar.month_name[month])
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
