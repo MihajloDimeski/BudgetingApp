@@ -8,6 +8,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/budgetdb
       - SECRET_KEY=dev_secret_key_change_in_prod
+    restart: unless-stopped
     depends_on:
       - db
     volumes:
@@ -17,22 +18,25 @@ services:
 
   db:
     image: postgres:15
+    ports:
+      - "5432:5432"
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=budgetdb
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
     networks:
       - budget_network
 
-  ngrok:
-    image: ngrok/ngrok:latest
-    restart: unless-stopped
-    environment:
-      NGROK_AUTHTOKEN: 2ThXrMMqScS6b4iXZAhYRTNfqoJ_23XgyPqbBkA2FWE4dWBif
-    command: http --url=amusing-firefly-positive.ngrok-free.app 5002
-    network_mode: "host"
+  # ngrok:
+  #   image: ngrok/ngrok:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     NGROK_AUTHTOKEN: 2ThXrMMqScS6b4iXZAhYRTNfqoJ_23XgyPqbBkA2FWE4dWBif
+  #   command: http --url=amusing-firefly-positive.ngrok-free.app 5002
+  #   network_mode: "host"
 
 
 volumes:
