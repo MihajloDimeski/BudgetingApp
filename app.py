@@ -48,8 +48,24 @@ def wait_for_db(app):
         raise Exception("Could not connect to the database after multiple retries.")
 
 with app.app_context():
+    from sqlalchemy import text
     wait_for_db(app)
     db.create_all()
+    # Migration: Add total_avail_override, spent_override, and remaining_override to recurring_transaction table if they don't exist
+    for col in ['total_avail_override', 'spent_override', 'remaining_override']:
+        try:
+            db.session.execute(text(f"SELECT {col} FROM recurring_transaction LIMIT 1"))
+        except Exception:
+            db.session.rollback()
+            try:
+                db.session.execute(text(f"ALTER TABLE recurring_transaction ADD COLUMN {col} FLOAT"))
+                db.session.commit()
+                print(f"Migration: Column '{col}' added successfully.")
+            except Exception as e:
+                db.session.rollback()
+                print(f"Migration failed to add column '{col}': {e}")
+
+
 
 def sync_integrations_helper(household_id):
     household = Household.query.get(household_id)
@@ -400,6 +416,10 @@ def update_recurring(id):
     currency = request.form.get('currency', 'USD')
     category_id = request.form.get('category_id')
     
+    total_avail_override_val = request.form.get('total_avail_override')
+    spent_override_val = request.form.get('spent_override')
+    remaining_override_val = request.form.get('remaining_override')
+    
     r.amount = amount
     r.description = description
     r.frequency = frequency
@@ -407,9 +427,26 @@ def update_recurring(id):
     r.currency = currency
     r.category_id = int(category_id) if category_id else None
     
+    if total_avail_override_val:
+        r.total_avail_override = float(total_avail_override_val)
+    else:
+        r.total_avail_override = None
+        
+    if spent_override_val:
+        r.spent_override = float(spent_override_val)
+    else:
+        r.spent_override = None
+
+    if remaining_override_val:
+        r.remaining_override = float(remaining_override_val)
+    else:
+        r.remaining_override = None
+
+    
     db.session.commit()
     flash('Income source updated successfully', 'success')
     return redirect(url_for('budgets'))
+
 
 
 @app.route('/check_recurring')
@@ -631,12 +668,22 @@ def budgets():
                 # Expenses or Investments increase spent amount
                 inc_spent += amount_converted
         
-        inc.spent = inc_spent
-        
         # Total Available = Monthly Amount + Rollover
         total_available = inc.amount + inc.rollover
-        
-        inc.remaining = total_available - inc_spent
+        if inc.total_avail_override is not None:
+            total_available = inc.total_avail_override
+            
+        if inc.spent_override is not None:
+            inc.spent = inc.spent_override
+        else:
+            inc.spent = inc_spent
+            
+        if inc.remaining_override is not None:
+            inc.remaining = inc.remaining_override
+        else:
+            inc.remaining = total_available - inc.spent
+            
+        inc.total_available = total_available
         
         # Progress: Usage against Total Available
         # Avoid division by zero
@@ -644,6 +691,7 @@ def budgets():
             inc.progress = (inc.spent / total_available * 100)
         else:
             inc.progress = 100 if inc.spent > 0 else 0
+
 
     # Calculate Total Expected Income (Monthly)
     total_expected_income = 0

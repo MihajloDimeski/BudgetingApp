@@ -141,6 +141,9 @@ erDiagram
      - `type` (String(20), Nullable=False): `'income'` or `'expense'`.
      - `category_id` (Integer, ForeignKey to `category.id`, Nullable=True)
      - `household_id` (Integer, ForeignKey to `household.id`, Nullable=False)
+     - `total_avail_override` (Float, Nullable=True): User override for total monthly available funds.
+     - `spent_override` (Float, Nullable=True): User override for month-to-date spent amount.
+     - `remaining_override` (Float, Nullable=True): User override for month-to-date remaining funds.
 
 ---
 
@@ -274,7 +277,7 @@ During start-up, SQLAlchemy requires a live Postgres port to initialize. To prev
 1. `app.py` runs a custom `wait_for_db(app)` helper inside the app context block.
 2. It attempts to open an active connection via `db.engine.connect()`.
 3. If it encounters a SQLAlchemy `OperationalError`, it sleeps for 5 seconds and retries up to 5 times.
-4. Once connected, it calls `db.create_all()` to generate tables and apply schema migrations before starting the WSGI listener.
+4. Once connected, it calls `db.create_all()` to generate new tables, and then executes custom schema checks (using `ALTER TABLE ... ADD COLUMN ...` queries wrapped in safety rollback catch blocks) to dynamically append missing column definitions (e.g., `total_avail_override`, `spent_override`, and `remaining_override`) before starting the WSGI listener.
 
 ---
 

@@ -87,3 +87,8 @@ class RecurringTransaction(db.Model):
     type = db.Column(db.String(20), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
     household_id = db.Column(db.Integer, db.ForeignKey('household.id'), nullable=False)
+    total_avail_override = db.Column(db.Float, nullable=True)
+    spent_override = db.Column(db.Float, nullable=True)
+    remaining_override = db.Column(db.Float, nullable=True)
+
+
