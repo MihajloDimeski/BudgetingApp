@@ -71,8 +71,10 @@
                         <strong>Total Avail: {{ currency_symbol(inc.currency) }}{{ "%.2f"|format(inc.amount +
                             inc.rollover) }}</strong>
                     </div>
+                    <a href="{{ url_for('budgets', edit_recurring_id=inc.id) }}"
+                        style="color: var(--accent-color); font-size: 0.8rem; text-decoration: none; display: inline-block; margin-top: 4px; margin-right: 0.5rem;">Edit</a>
                     <a href="{{ url_for('delete_recurring', id=inc.id) }}"
-                        style="color: var(--danger-color); font-size: 0.8rem; text-decoration: none; display: block; margin-top: 4px;">Remove</a>
+                        style="color: var(--danger-color); font-size: 0.8rem; text-decoration: none; display: inline-block; margin-top: 4px;">Remove</a>
                 </div>
             </div>
 
@@ -96,6 +98,47 @@
 
         <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 1rem 0;">
 
+        {% if edit_recurring %}
+        <form action="{{ url_for('update_recurring', id=edit_recurring.id) }}" method="POST">
+            <input type="hidden" name="type" value="income">
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" name="description" class="form-control" placeholder="Source (e.g. Salary)" required
+                    style="margin-bottom: 0.5rem;" value="{{ edit_recurring.description }}">
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="number" step="0.01" name="amount" class="form-control" placeholder="Amount" required
+                        style="flex: 2;" value="{{ edit_recurring.amount }}">
+                    <select name="currency" class="form-control" style="flex: 1;">
+                        <option value="USD" {% if edit_recurring.currency=='USD' %}selected{% endif %}>USD</option>
+                        <option value="EUR" {% if edit_recurring.currency=='EUR' %}selected{% endif %}>EUR</option>
+                        <option value="MKD" {% if edit_recurring.currency=='MKD' %}selected{% endif %}>MKD</option>
+                    </select>
+                    <select name="frequency" class="form-control" style="flex: 1;">
+                        <option value="monthly" {% if edit_recurring.frequency=='monthly' %}selected{% endif %}>Monthly</option>
+                        <option value="weekly" {% if edit_recurring.frequency=='weekly' %}selected{% endif %}>Weekly</option>
+                        <option value="yearly" {% if edit_recurring.frequency=='yearly' %}selected{% endif %}>Yearly</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Next Pay Day</label>
+                <input type="date" name="next_due_date" class="form-control" required value="{{ edit_recurring.next_due_date.strftime('%Y-%m-%d') }}">
+            </div>
+            <div class="form-group">
+                <label>Category (Optional)</label>
+                <select name="category_id" class="form-control">
+                    <option value="">No Category</option>
+                    {% for c in categories %}
+                    {% if c.type == 'income' %}
+                    <option value="{{ c.id }}" {% if edit_recurring.category_id==c.id %}selected{% endif %}>{{ c.name }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 0.9rem;">Update Income Source</button>
+            <a href="{{ url_for('budgets') }}" class="btn" style="width: 100%; font-size: 0.9rem; margin-top: 0.5rem; text-align: center; background: var(--text-secondary); color: var(--bg-color); text-decoration: none;">Cancel</a>
+        </form>
+        {% else %}
         <form action="{{ url_for('add_recurring') }}" method="POST">
             <input type="hidden" name="type" value="income">
             <div class="form-group">
@@ -142,6 +185,7 @@
             <button type="submit" class="btn btn-success" style="width: 100%; font-size: 0.9rem;">Add Income
                 Source</button>
         </form>
+        {% endif %}
     </div>
 
     <div class="card">

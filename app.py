@@ -371,7 +371,8 @@ def add_recurring():
     )
     db.session.add(r)
     db.session.commit()
-    return redirect(url_for('transactions'))
+    flash('Recurring transaction added successfully', 'success')
+    return redirect(request.referrer or url_for('transactions'))
 
 @app.route('/delete_recurring/<int:id>')
 @login_required
@@ -380,7 +381,36 @@ def delete_recurring(id):
     if r.household_id == current_user.household_id:
         db.session.delete(r)
         db.session.commit()
-    return redirect(url_for('transactions'))
+        flash('Recurring transaction deleted successfully', 'success')
+    return redirect(request.referrer or url_for('transactions'))
+
+@app.route('/recurring/update/<int:id>', methods=['POST'])
+@login_required
+def update_recurring(id):
+    r = RecurringTransaction.query.get_or_404(id)
+    if r.household_id != current_user.household_id:
+        flash('Recurring transaction not found', 'danger')
+        return redirect(url_for('budgets'))
+        
+    amount = float(request.form.get('amount'))
+    description = request.form.get('description')
+    frequency = request.form.get('frequency')
+    next_due_str = request.form.get('next_due_date')
+    next_due_date = datetime.strptime(next_due_str, '%Y-%m-%d')
+    currency = request.form.get('currency', 'USD')
+    category_id = request.form.get('category_id')
+    
+    r.amount = amount
+    r.description = description
+    r.frequency = frequency
+    r.next_due_date = next_due_date
+    r.currency = currency
+    r.category_id = int(category_id) if category_id else None
+    
+    db.session.commit()
+    flash('Income source updated successfully', 'success')
+    return redirect(url_for('budgets'))
+
 
 @app.route('/check_recurring')
 @login_required
@@ -653,6 +683,16 @@ def budgets():
         
         b.spent = spent
 
+    edit_recurring_id = request.args.get('edit_recurring_id')
+    edit_recurring = None
+    if edit_recurring_id:
+        try:
+            edit_recurring = RecurringTransaction.query.get(int(edit_recurring_id))
+            if edit_recurring and edit_recurring.household_id != current_user.household_id:
+                edit_recurring = None
+        except (ValueError, TypeError):
+            edit_recurring = None
+
     return render_template('budgets.html', 
                          budgets=expense_budgets, 
                          categories=categories,
@@ -665,7 +705,8 @@ def budgets():
                          prev_year=prev_year,
                          next_month=next_month,
                          next_year=next_year,
-                         month_name=calendar.month_name[month])
+                         month_name=calendar.month_name[month],
+                         edit_recurring=edit_recurring)
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
