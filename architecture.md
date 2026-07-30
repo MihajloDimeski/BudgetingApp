@@ -179,7 +179,7 @@ For each income source:
    - It compares `next_due_date` against `now` for all `RecurringTransaction` definitions in the user's household.
    - For each due transaction, it inserts a new `Transaction` object into the ledger and advances the `next_due_date` (+7 days for weekly, +30 days for monthly, +365 days for yearly).
    - Commits changes to the database.
-2. **Editing & Updating (e.g., Paycheck Raises)**: Recurring transactions (like paycheck income sources) are editable. Passing `edit_recurring_id` as a query parameter to `/budgets` retrieves the transaction and populates the budget form in "Edit Mode". Submitting the form posts to `/recurring/update/<int:id>`, which updates the `amount`, `description`, `frequency`, `next_due_date`, `currency`, and `category_id`, committing the changes to the database.
+2. **Editing & Updating (e.g., Paycheck Raises)**: Recurring transactions (like paycheck income sources) are editable. Passing `edit_recurring_id` as a query parameter to `/budgets` retrieves the transaction and populates the budget form in "Edit Mode". Submitting the form posts to `/recurring/update/<int:id>`, which updates the `amount`, `description`, `frequency`, `next_due_date`, `currency`, and `category_id`, as well as optional manual override offsets (`total_avail_override`, `spent_override`, `remaining_override`), committing the changes to the database. These overrides act as base starting points for the month, allowing new transactions to still dynamically increment the spent balance and decrement the remaining balance.
 
 ### D. Investment Account Tracking
 When a user adds a transaction with type `'investment'` that lists a target `integration_id`, the system:

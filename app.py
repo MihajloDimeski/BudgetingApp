@@ -674,12 +674,12 @@ def budgets():
             total_available = inc.total_avail_override
             
         if inc.spent_override is not None:
-            inc.spent = inc.spent_override
+            inc.spent = inc.spent_override + inc_spent
         else:
             inc.spent = inc_spent
             
         if inc.remaining_override is not None:
-            inc.remaining = inc.remaining_override
+            inc.remaining = inc.remaining_override - inc_spent
         else:
             inc.remaining = total_available - inc.spent
             
