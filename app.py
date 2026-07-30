@@ -427,18 +427,40 @@ def update_recurring(id):
     r.currency = currency
     r.category_id = int(category_id) if category_id else None
     
+    # Calculate current month date range for override offset calculation
+    now = datetime.utcnow()
+    import calendar
+    num_days = calendar.monthrange(now.year, now.month)[1]
+    start_date = datetime(now.year, now.month, 1)
+    end_date = datetime(now.year, now.month, num_days, 23, 59, 59)
+    
+    # Calculate MTD spent amount linked to this income source
+    linked_transactions = Transaction.query.filter(
+        Transaction.income_source_id == r.id,
+        Transaction.date >= start_date,
+        Transaction.date <= end_date
+    ).all()
+    
+    inc_spent = 0
+    for t in linked_transactions:
+        amount_converted = CurrencyConverter.convert(t.amount, t.currency, r.currency)
+        if t.type == 'income':
+            inc_spent -= amount_converted
+        else:
+            inc_spent += amount_converted
+
     if total_avail_override_val:
         r.total_avail_override = float(total_avail_override_val)
     else:
         r.total_avail_override = None
         
     if spent_override_val:
-        r.spent_override = float(spent_override_val)
+        r.spent_override = float(spent_override_val) - inc_spent
     else:
         r.spent_override = None
 
     if remaining_override_val:
-        r.remaining_override = float(remaining_override_val)
+        r.remaining_override = float(remaining_override_val) + inc_spent
     else:
         r.remaining_override = None
 

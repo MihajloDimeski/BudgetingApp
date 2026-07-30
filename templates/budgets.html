@@ -143,12 +143,12 @@
                 <div style="flex: 1;">
                     <label style="font-size: 0.8rem; color: var(--text-secondary);">Spent Override</label>
                     <input type="number" step="0.01" name="spent_override" class="form-control" style="margin-bottom: 0;" placeholder="e.g. 222018.00"
-                        value="{{ edit_recurring.spent_override if edit_recurring.spent_override is not none else '' }}">
+                        value="{{ edit_recurring.spent if edit_recurring.spent_override is not none else '' }}">
                 </div>
                 <div style="flex: 1;">
                     <label style="font-size: 0.8rem; color: var(--text-secondary);">Remaining Override</label>
                     <input type="number" step="0.01" name="remaining_override" class="form-control" style="margin-bottom: 0;" placeholder="e.g. 134598.59"
-                        value="{{ edit_recurring.remaining_override if edit_recurring.remaining_override is not none else '' }}">
+                        value="{{ edit_recurring.remaining if edit_recurring.remaining_override is not none else '' }}">
                 </div>
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 0.9rem;">Update Income Source</button>
